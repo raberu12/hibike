@@ -16,11 +16,8 @@ export function Tuner() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,_#020617,_#0f172a_55%,_#111827)] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <header className="text-center">
-          <p className="text-sm font-semibold uppercase tracking-[0.35em] text-cyan-300">
-            Real-time Web Audio API
-          </p>
           <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-6xl">
-            Ukulele Tuner
+            Hibike
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-300 sm:text-lg">
             Tune standard ukulele strings G4, C4, E4, and A4 with live pitch
