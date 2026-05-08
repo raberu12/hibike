@@ -1,15 +1,19 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useAudio } from '../hooks/useAudio'
 import { getClosestUkuleleNote } from '../utils/noteMapping'
+import { EffectsPanel } from './EffectsPanel'
 import { NoteDisplay } from './NoteDisplay'
 import { StringVisualizer } from './StringVisualizer'
 import { TuningMeter } from './TuningMeter'
 
+type AppMode = 'tune' | 'effects'
+
 export function Tuner() {
-  const { frequency, isListening, error, start, stop } = useAudio()
+  const [mode, setMode] = useState<AppMode>('tune')
+  const audio = useAudio()
   const match = useMemo(
-    () => (frequency ? getClosestUkuleleNote(frequency) : null),
-    [frequency],
+    () => (audio.frequency ? getClosestUkuleleNote(audio.frequency) : null),
+    [audio.frequency],
   )
 
   return (
@@ -20,41 +24,85 @@ export function Tuner() {
             Hibike
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-base text-slate-300 sm:text-lg">
-            Tune standard ukulele strings G4, C4, E4, and A4 with live pitch
-            detection and cents deviation.
+            Tune standard ukulele strings G4, C4, E4, and A4, then experiment
+            with local live effects for electric and ambient uke tones.
           </p>
         </header>
 
-        <div className="flex justify-center gap-3">
+        <div className="mx-auto grid w-full max-w-md grid-cols-2 rounded-full border border-slate-700 bg-slate-950/70 p-1">
           <button
             type="button"
-            onClick={start}
-            disabled={isListening}
-            className="rounded-full bg-cyan-300 px-6 py-3 font-bold text-slate-950 shadow-lg shadow-cyan-950/40 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            onClick={() => setMode('tune')}
+            className={`rounded-full px-5 py-3 font-bold transition ${
+              mode === 'tune'
+                ? 'bg-cyan-300 text-slate-950'
+                : 'text-slate-300 hover:bg-slate-800'
+            }`}
           >
-            Start listening
+            Tune
           </button>
           <button
             type="button"
-            onClick={stop}
-            disabled={!isListening}
-            className="rounded-full border border-slate-600 px-6 py-3 font-bold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={() => setMode('effects')}
+            className={`rounded-full px-5 py-3 font-bold transition ${
+              mode === 'effects'
+                ? 'bg-cyan-300 text-slate-950'
+                : 'text-slate-300 hover:bg-slate-800'
+            }`}
           >
-            Stop
+            Effects
           </button>
         </div>
 
-        <NoteDisplay
-          match={match}
-          frequency={frequency}
-          isListening={isListening}
-          error={error}
-        />
+        {mode === 'tune' ? (
+          <>
+            <div className="flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={audio.start}
+                disabled={audio.isListening}
+                className="rounded-full bg-cyan-300 px-6 py-3 font-bold text-slate-950 shadow-lg shadow-cyan-950/40 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+              >
+                Start listening
+              </button>
+              <button
+                type="button"
+                onClick={audio.stop}
+                disabled={!audio.isListening}
+                className="rounded-full border border-slate-600 px-6 py-3 font-bold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Stop
+              </button>
+            </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <TuningMeter cents={match?.cents ?? null} />
-          <StringVisualizer activeNote={match?.note ?? null} />
-        </div>
+            <NoteDisplay
+              match={match}
+              frequency={audio.frequency}
+              isListening={audio.isListening}
+              error={audio.error}
+            />
+
+            <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+              <TuningMeter cents={match?.cents ?? null} />
+              <StringVisualizer activeNote={match?.note ?? null} />
+            </div>
+          </>
+        ) : (
+          <EffectsPanel
+            isListening={audio.isListening}
+            isMonitoring={audio.isMonitoring}
+            error={audio.error}
+            settings={audio.effectSettings}
+            presets={audio.presets}
+            selectedPresetId={audio.selectedPresetId}
+            start={audio.start}
+            stop={audio.stop}
+            enableMonitoring={audio.enableMonitoring}
+            disableMonitoring={audio.disableMonitoring}
+            applyPreset={audio.applyEffectPreset}
+            setEffectSetting={audio.setEffectSetting}
+          />
+        )}
       </div>
     </main>
   )
