@@ -6,6 +6,8 @@ import {
   type EffectSettings,
 } from '../utils/effects'
 import { detectPitch } from '../utils/pitchDetection'
+import { renderEffectedWav } from '../utils/offlineEffects'
+import { encodeWav } from '../utils/wav'
 
 export type AudioState = {
   frequency: number | null
@@ -15,12 +17,20 @@ export type AudioState = {
   effectSettings: EffectSettings
   selectedPresetId: EffectPresetId | null
   presets: typeof EFFECT_PRESETS
+  isRecording: boolean
+  recordingBlob: Blob | null
+  processedRecordingBlob: Blob | null
+  isProcessingRecording: boolean
   start: () => Promise<void>
   stop: () => void
   enableMonitoring: () => Promise<void>
   disableMonitoring: () => void
   applyEffectPreset: (presetId: EffectPresetId) => void
   setEffectSetting: (key: keyof EffectSettings, value: number) => void
+  startRecording: () => Promise<void>
+  stopRecording: () => void
+  clearRecording: () => void
+  processRecordingWithEffects: () => Promise<void>
 }
 
 type EffectGraph = {
@@ -39,6 +49,8 @@ type EffectGraph = {
 const FFT_SIZE = 2048
 const SMOOTHING_WINDOW = 5
 const DEFAULT_PRESET_ID: EffectPresetId = 'clean'
+const RECORDING_MAX_SECONDS = 20
+const RECORDER_BUFFER_SIZE = 4096
 
 export function useAudio(): AudioState {
   const [frequency, setFrequency] = useState<number | null>(null)
@@ -50,13 +62,24 @@ export function useAudio(): AudioState {
   )
   const [selectedPresetId, setSelectedPresetId] =
     useState<EffectPresetId | null>(DEFAULT_PRESET_ID)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null)
+  const [processedRecordingBlob, setProcessedRecordingBlob] = useState<Blob | null>(null)
+  const [isProcessingRecording, setIsProcessingRecording] = useState(false)
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
   const effectGraphRef = useRef<EffectGraph | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const recentFrequenciesRef = useRef<number[]>([])
+  const recordingChunksRef = useRef<Float32Array[]>([])
+  const recordedSamplesRef = useRef<Float32Array | null>(null)
+  const recordingSampleRateRef = useRef(44100)
+  const recorderNodeRef = useRef<ScriptProcessorNode | null>(null)
+  const recorderSilentGainRef = useRef<GainNode | null>(null)
+  const recordingTimeoutRef = useRef<number | null>(null)
   const settingsRef = useRef(effectSettings)
 
   const applySettingsToGraph = useCallback(
@@ -98,7 +121,60 @@ export function useAudio(): AudioState {
     setIsMonitoring(false)
   }, [])
 
+
+  const stopRecording = useCallback(() => {
+    if (recordingTimeoutRef.current !== null) {
+      window.clearTimeout(recordingTimeoutRef.current)
+      recordingTimeoutRef.current = null
+    }
+
+    const recorderNode = recorderNodeRef.current
+
+    if (recorderNode) {
+      recorderNode.onaudioprocess = null
+      safeDisconnect(recorderNode)
+    }
+
+    safeDisconnect(recorderSilentGainRef.current)
+    recorderNodeRef.current = null
+    recorderSilentGainRef.current = null
+
+    const chunks = recordingChunksRef.current
+    recordingChunksRef.current = []
+    setIsRecording(false)
+
+    if (chunks.length === 0) {
+      return
+    }
+
+    const sampleCount = chunks.reduce((total, chunk) => total + chunk.length, 0)
+    const samples = new Float32Array(sampleCount)
+    let offset = 0
+
+    for (const chunk of chunks) {
+      samples.set(chunk, offset)
+      offset += chunk.length
+    }
+
+    recordedSamplesRef.current = samples
+    setProcessedRecordingBlob(null)
+    setRecordingBlob(encodeWav(samples, recordingSampleRateRef.current))
+  }, [])
+
+  const clearRecording = useCallback(() => {
+    if (recorderNodeRef.current) {
+      stopRecording()
+    }
+
+    recordingChunksRef.current = []
+    recordedSamplesRef.current = null
+    setProcessedRecordingBlob(null)
+    setRecordingBlob(null)
+  }, [stopRecording])
+
   const stop = useCallback(() => {
+    stopRecording()
+
     if (animationFrameRef.current !== null) {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
@@ -106,6 +182,7 @@ export function useAudio(): AudioState {
 
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
+    sourceRef.current = null
     effectGraphRef.current = null
 
     void audioContextRef.current?.close()
@@ -115,7 +192,7 @@ export function useAudio(): AudioState {
     setIsListening(false)
     setIsMonitoring(false)
     setFrequency(null)
-  }, [])
+  }, [stopRecording])
 
   const processAudio = useCallback(function processAudioLoop() {
     const analyser = analyserRef.current
@@ -182,6 +259,7 @@ export function useAudio(): AudioState {
 
       streamRef.current = stream
       audioContextRef.current = audioContext
+      sourceRef.current = source
       analyserRef.current = analyser
       effectGraphRef.current = effectGraph
       setIsListening(true)
@@ -210,11 +288,76 @@ export function useAudio(): AudioState {
     setIsMonitoring(true)
   }, [start])
 
+
+  const startRecording = useCallback(async () => {
+    if (recorderNodeRef.current) {
+      return
+    }
+
+    await start()
+
+    const audioContext = audioContextRef.current
+    const source = sourceRef.current
+
+    if (!audioContext || !source) {
+      return
+    }
+
+    const recorderNode = audioContext.createScriptProcessor(RECORDER_BUFFER_SIZE, 1, 1)
+    const silentGain = audioContext.createGain()
+
+    silentGain.gain.value = 0
+    recordingChunksRef.current = []
+    recordedSamplesRef.current = null
+    recordingSampleRateRef.current = audioContext.sampleRate
+    setProcessedRecordingBlob(null)
+    setRecordingBlob(null)
+
+    recorderNode.onaudioprocess = (event) => {
+      const input = event.inputBuffer.getChannelData(0)
+      recordingChunksRef.current.push(new Float32Array(input))
+    }
+
+    source.connect(recorderNode)
+    recorderNode.connect(silentGain)
+    silentGain.connect(audioContext.destination)
+
+    recorderNodeRef.current = recorderNode
+    recorderSilentGainRef.current = silentGain
+    setIsRecording(true)
+    recordingTimeoutRef.current = window.setTimeout(
+      stopRecording,
+      RECORDING_MAX_SECONDS * 1000,
+    )
+  }, [start, stopRecording])
+
+
+  const processRecordingWithEffects = useCallback(async () => {
+    const recordedSamples = recordedSamplesRef.current
+
+    if (!recordedSamples || isProcessingRecording) {
+      return
+    }
+
+    try {
+      setIsProcessingRecording(true)
+      const processedBlob = await renderEffectedWav(
+        recordedSamples,
+        recordingSampleRateRef.current,
+        settingsRef.current,
+      )
+      setProcessedRecordingBlob(processedBlob)
+    } finally {
+      setIsProcessingRecording(false)
+    }
+  }, [isProcessingRecording])
+
   const setEffectSetting = useCallback(
     (key: keyof EffectSettings, value: number) => {
       const safeValue = clamp01(value)
 
       setSelectedPresetId(null)
+      setProcessedRecordingBlob(null)
       setEffectSettings((currentSettings) => {
         const nextSettings = { ...currentSettings, [key]: safeValue }
         settingsRef.current = nextSettings
@@ -236,6 +379,7 @@ export function useAudio(): AudioState {
       const nextSettings = { ...preset.settings }
       settingsRef.current = nextSettings
       setSelectedPresetId(preset.id)
+      setProcessedRecordingBlob(null)
       setEffectSettings(nextSettings)
       applySettingsToGraph(nextSettings)
     },
@@ -252,12 +396,20 @@ export function useAudio(): AudioState {
     effectSettings,
     selectedPresetId,
     presets: EFFECT_PRESETS,
+    isRecording,
+    recordingBlob,
+    processedRecordingBlob,
+    isProcessingRecording,
     start,
     stop,
     enableMonitoring,
     disableMonitoring,
     applyEffectPreset,
     setEffectSetting,
+    startRecording,
+    stopRecording,
+    clearRecording,
+    processRecordingWithEffects,
   }
 }
 
@@ -357,4 +509,13 @@ function clamp01(value: number) {
   }
 
   return Math.max(0, Math.min(1, value))
+}
+
+
+function safeDisconnect(node: AudioNode | null) {
+  try {
+    node?.disconnect()
+  } catch {
+    // Node may already be disconnected during cleanup.
+  }
 }

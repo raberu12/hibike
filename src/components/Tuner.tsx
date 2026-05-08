@@ -95,11 +95,19 @@ export function Tuner() {
             settings={audio.effectSettings}
             presets={audio.presets}
             selectedPresetId={audio.selectedPresetId}
+            isRecording={audio.isRecording}
+            recordingBlob={audio.recordingBlob}
+            processedRecordingBlob={audio.processedRecordingBlob}
+            isProcessingRecording={audio.isProcessingRecording}
             stop={audio.stop}
             enableMonitoring={audio.enableMonitoring}
             disableMonitoring={audio.disableMonitoring}
             applyPreset={audio.applyEffectPreset}
             setEffectSetting={audio.setEffectSetting}
+            startRecording={audio.startRecording}
+            stopRecording={audio.stopRecording}
+            clearRecording={audio.clearRecording}
+            processRecordingWithEffects={audio.processRecordingWithEffects}
           />
         )}
       </div>

@@ -1,4 +1,5 @@
 import type { EffectPreset, EffectPresetId, EffectSettings } from '../utils/effects'
+import { SampleDataPanel } from './SampleDataPanel'
 
 type EffectsPanelProps = {
   isListening: boolean
@@ -7,11 +8,19 @@ type EffectsPanelProps = {
   settings: EffectSettings
   presets: EffectPreset[]
   selectedPresetId: EffectPresetId | null
+  isRecording: boolean
+  recordingBlob: Blob | null
+  processedRecordingBlob: Blob | null
+  isProcessingRecording: boolean
   stop: () => void
   enableMonitoring: () => Promise<void>
   disableMonitoring: () => void
   applyPreset: (presetId: EffectPresetId) => void
   setEffectSetting: (key: keyof EffectSettings, value: number) => void
+  startRecording: () => Promise<void>
+  stopRecording: () => void
+  clearRecording: () => void
+  processRecordingWithEffects: () => Promise<void>
 }
 
 const CONTROL_LABELS: Record<keyof EffectSettings, string> = {
@@ -37,12 +46,22 @@ export function EffectsPanel({
   settings,
   presets,
   selectedPresetId,
+  isRecording,
+  recordingBlob,
+  processedRecordingBlob,
+  isProcessingRecording,
   stop,
   enableMonitoring,
   disableMonitoring,
   applyPreset,
   setEffectSetting,
+  startRecording,
+  stopRecording,
+  clearRecording,
+  processRecordingWithEffects,
 }: EffectsPanelProps) {
+  const selectedPresetName =
+    presets.find((preset) => preset.id === selectedPresetId)?.name ?? 'Custom'
   const monitorButtonLabel = isMonitoring
     ? 'Mute'
     : isListening
@@ -152,6 +171,19 @@ export function EffectsPanel({
           </label>
         ))}
       </div>
+
+      <SampleDataPanel
+        isListening={isListening}
+        isRecording={isRecording}
+        recordingBlob={recordingBlob}
+        processedRecordingBlob={processedRecordingBlob}
+        isProcessingRecording={isProcessingRecording}
+        selectedPresetName={selectedPresetName}
+        startRecording={startRecording}
+        stopRecording={stopRecording}
+        clearRecording={clearRecording}
+        processRecordingWithEffects={processRecordingWithEffects}
+      />
     </section>
   )
 }
