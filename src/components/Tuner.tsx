@@ -95,7 +95,6 @@ export function Tuner() {
             settings={audio.effectSettings}
             presets={audio.presets}
             selectedPresetId={audio.selectedPresetId}
-            start={audio.start}
             stop={audio.stop}
             enableMonitoring={audio.enableMonitoring}
             disableMonitoring={audio.disableMonitoring}

@@ -7,7 +7,6 @@ type EffectsPanelProps = {
   settings: EffectSettings
   presets: EffectPreset[]
   selectedPresetId: EffectPresetId | null
-  start: () => Promise<void>
   stop: () => void
   enableMonitoring: () => Promise<void>
   disableMonitoring: () => void
@@ -38,13 +37,18 @@ export function EffectsPanel({
   settings,
   presets,
   selectedPresetId,
-  start,
   stop,
   enableMonitoring,
   disableMonitoring,
   applyPreset,
   setEffectSetting,
 }: EffectsPanelProps) {
+  const monitorButtonLabel = isMonitoring
+    ? 'Mute'
+    : isListening
+      ? 'Unmute'
+      : 'Start effects'
+
   return (
     <section className="rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-2xl shadow-cyan-950/20 backdrop-blur">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -63,11 +67,14 @@ export function EffectsPanel({
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={start}
-            disabled={isListening}
-            className="rounded-full bg-cyan-300 px-5 py-3 font-bold text-slate-950 shadow-lg shadow-cyan-950/40 transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+            onClick={isMonitoring ? disableMonitoring : enableMonitoring}
+            className={`rounded-full px-5 py-3 font-bold transition ${
+              isMonitoring
+                ? 'bg-rose-300 text-rose-950 hover:bg-rose-200'
+                : 'bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/40 hover:bg-cyan-200'
+            }`}
           >
-            Start input
+            {monitorButtonLabel}
           </button>
           <button
             type="button"
@@ -77,24 +84,15 @@ export function EffectsPanel({
           >
             Stop
           </button>
-          <button
-            type="button"
-            onClick={isMonitoring ? disableMonitoring : enableMonitoring}
-            className={`rounded-full px-5 py-3 font-bold transition ${
-              isMonitoring
-                ? 'bg-rose-300 text-rose-950 hover:bg-rose-200'
-                : 'border border-amber-300/60 text-amber-100 hover:bg-amber-300/10'
-            }`}
-          >
-            {isMonitoring ? 'Mute monitor' : 'Enable monitor'}
-          </button>
         </div>
       </div>
 
       <div className="mt-6 rounded-2xl border border-amber-300/20 bg-amber-950/20 p-4 text-sm text-amber-100">
         {isMonitoring
-          ? 'Monitor is on. Keep your volume low and use headphones.'
-          : 'Monitor is off by default. Enable it only when headphones are ready.'}
+          ? 'Effects are audible. Keep your volume low and use headphones.'
+          : isListening
+            ? 'Effects are muted. Use Unmute when headphones are ready.'
+            : 'Effects are off. Start effects only when headphones are ready.'}
       </div>
 
       {error ? (
