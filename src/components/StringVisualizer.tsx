@@ -9,15 +9,12 @@ export function StringVisualizer({ activeNote }: StringVisualizerProps) {
     <section className="rounded-3xl border border-slate-700/70 bg-slate-900/70 p-6">
       <div className="mb-5 flex items-center justify-between">
         <h2 className="text-lg font-bold text-white">Ukulele Strings</h2>
-        <span className="text-xs uppercase tracking-[0.25em] text-slate-500">
-          SVG placeholder
-        </span>
       </div>
 
       <svg
         viewBox="0 0 640 220"
         role="img"
-        aria-label="Four ukulele strings visualizer placeholder"
+        aria-label="Four ukulele strings visualizer"
         className="h-auto w-full overflow-visible"
       >
         <defs>
@@ -27,7 +24,6 @@ export function StringVisualizer({ activeNote }: StringVisualizerProps) {
           </linearGradient>
         </defs>
         <rect x="20" y="24" width="600" height="172" rx="48" fill="url(#bodyGlow)" />
-        <circle cx="320" cy="110" r="48" fill="#020617" stroke="#334155" strokeWidth="4" />
         <rect x="62" y="52" width="54" height="116" rx="14" fill="#1e293b" />
         <rect x="524" y="52" width="54" height="116" rx="14" fill="#1e293b" />
 
