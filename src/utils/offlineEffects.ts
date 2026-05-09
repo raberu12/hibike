@@ -8,6 +8,8 @@ export async function renderEffectedWav(
   sampleRate: number,
   settings: EffectSettings,
 ) {
+  // Leave extra render time so delay and reverb tails are included instead of
+  // being cut off at the end of the dry recording.
   const renderLength = samples.length + Math.floor(sampleRate * EFFECT_TAIL_SECONDS)
   const audioContext = new OfflineAudioContext(1, renderLength, sampleRate)
   const sourceBuffer = audioContext.createBuffer(1, renderLength, sampleRate)
@@ -41,6 +43,8 @@ export async function renderEffectedWav(
   reverbGain.gain.value = settings.reverb * 0.55
   outputGain.gain.value = settings.volume
 
+  // Recreate the same signal path offline so exported audio matches the live
+  // effect settings without depending on real-time playback.
   source.connect(compressor)
   compressor.connect(drive)
   drive.connect(tone)
