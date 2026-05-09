@@ -13,6 +13,7 @@ export type AudioState = {
   frequency: number | null
   isListening: boolean
   isMonitoring: boolean
+  hasLiveFilteringSession: boolean
   error: string | null
   effectSettings: EffectSettings
   selectedPresetId: EffectPresetId | null
@@ -26,6 +27,7 @@ export type AudioState = {
   enableMonitoring: () => Promise<void>
   disableMonitoring: () => void
   applyEffectPreset: (presetId: EffectPresetId) => void
+  selectCustomPreset: () => void
   setEffectSetting: (key: keyof EffectSettings, value: number) => void
   startRecording: () => Promise<void>
   stopRecording: () => void
@@ -56,6 +58,7 @@ export function useAudio(): AudioState {
   const [frequency, setFrequency] = useState<number | null>(null)
   const [isListening, setIsListening] = useState(false)
   const [isMonitoring, setIsMonitoring] = useState(false)
+  const [hasLiveFilteringSession, setHasLiveFilteringSession] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [effectSettings, setEffectSettings] = useState<EffectSettings>(
     DEFAULT_EFFECT_SETTINGS,
@@ -191,6 +194,7 @@ export function useAudio(): AudioState {
     recentFrequenciesRef.current = []
     setIsListening(false)
     setIsMonitoring(false)
+    setHasLiveFilteringSession(false)
     setFrequency(null)
   }, [stopRecording])
 
@@ -293,6 +297,7 @@ export function useAudio(): AudioState {
     }
 
     graph.monitorGain.gain.setTargetAtTime(1, audioContext.currentTime, 0.02)
+    setHasLiveFilteringSession(true)
     setIsMonitoring(true)
   }, [start])
 
@@ -396,12 +401,17 @@ export function useAudio(): AudioState {
     [applySettingsToGraph],
   )
 
+  const selectCustomPreset = useCallback(() => {
+    setSelectedPresetId(null)
+  }, [])
+
   useEffect(() => stop, [stop])
 
   return {
     frequency,
     isListening,
     isMonitoring,
+    hasLiveFilteringSession,
     error,
     effectSettings,
     selectedPresetId,
@@ -415,6 +425,7 @@ export function useAudio(): AudioState {
     enableMonitoring,
     disableMonitoring,
     applyEffectPreset,
+    selectCustomPreset,
     setEffectSetting,
     startRecording,
     stopRecording,

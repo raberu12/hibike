@@ -2,8 +2,8 @@ import type { EffectPreset, EffectPresetId, EffectSettings } from '../utils/effe
 import { SampleDataPanel } from './SampleDataPanel'
 
 type EffectsPanelProps = {
-  isListening: boolean
   isMonitoring: boolean
+  hasLiveFilteringSession: boolean
   error: string | null
   settings: EffectSettings
   presets: EffectPreset[]
@@ -16,6 +16,7 @@ type EffectsPanelProps = {
   enableMonitoring: () => Promise<void>
   disableMonitoring: () => void
   applyPreset: (presetId: EffectPresetId) => void
+  selectCustomPreset: () => void
   setEffectSetting: (key: keyof EffectSettings, value: number) => void
   startRecording: () => Promise<void>
   stopRecording: () => void
@@ -40,8 +41,8 @@ const CONTROL_HELP: Record<keyof EffectSettings, string> = {
 }
 
 export function EffectsPanel({
-  isListening,
   isMonitoring,
+  hasLiveFilteringSession,
   error,
   settings,
   presets,
@@ -54,6 +55,7 @@ export function EffectsPanel({
   enableMonitoring,
   disableMonitoring,
   applyPreset,
+  selectCustomPreset,
   setEffectSetting,
   startRecording,
   stopRecording,
@@ -63,10 +65,12 @@ export function EffectsPanel({
   const selectedPresetName =
     presets.find((preset) => preset.id === selectedPresetId)?.name ?? 'Custom'
   const monitorButtonLabel = isMonitoring
-    ? 'Mute'
-    : isListening
-      ? 'Unmute'
-      : 'Start effects'
+    ? 'Mute live filtering'
+    : hasLiveFilteringSession
+      ? 'Unmute live filtering'
+      : 'Start live filtering'
+  const showStopControl = hasLiveFilteringSession
+  const customPresetSelected = selectedPresetId === null
 
   return (
     <section className="rounded-3xl border border-slate-700/70 bg-slate-900/80 p-6 shadow-2xl shadow-cyan-950/20 backdrop-blur">
@@ -75,7 +79,7 @@ export function EffectsPanel({
           <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">
             Effects sandbox
           </p>
-          <h2 className="mt-3 text-3xl font-black text-white">Live uke tones</h2>
+          <h2 className="mt-3 text-3xl font-black text-white">Live Filtering</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
             Use headphones before enabling monitor to avoid speaker feedback. The
             tuner still listens to the clean mic signal while effects shape what
@@ -83,33 +87,40 @@ export function EffectsPanel({
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
+            aria-label={monitorButtonLabel}
+            title={monitorButtonLabel}
             onClick={isMonitoring ? disableMonitoring : enableMonitoring}
-            className={`rounded-full px-5 py-3 font-bold transition ${
+            className={`inline-flex size-12 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 ${
               isMonitoring
-                ? 'bg-rose-300 text-rose-950 hover:bg-rose-200'
-                : 'bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/40 hover:bg-cyan-200'
+                ? 'border-emerald-300/40 bg-emerald-400 text-emerald-950 shadow-lg shadow-emerald-950/30 hover:bg-emerald-300 focus-visible:ring-emerald-300'
+                : hasLiveFilteringSession
+                  ? 'border-amber-300/40 bg-amber-300 text-amber-950 shadow-lg shadow-amber-950/30 hover:bg-amber-200 focus-visible:ring-amber-300'
+                  : 'border-cyan-300/30 bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/40 hover:bg-cyan-200 focus-visible:ring-cyan-300'
             }`}
           >
-            {monitorButtonLabel}
+            <MicrophoneIcon className="size-5" />
           </button>
-          <button
-            type="button"
-            onClick={stop}
-            disabled={!isListening}
-            className="rounded-full border border-slate-600 px-5 py-3 font-bold text-slate-200 transition hover:border-slate-400 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Stop
-          </button>
+          {showStopControl ? (
+            <button
+              type="button"
+              aria-label="Stop live filtering"
+              title="Stop live filtering"
+              onClick={stop}
+              className="inline-flex size-12 items-center justify-center rounded-full border border-rose-300/40 bg-rose-300 text-rose-950 shadow-lg shadow-rose-950/30 transition hover:bg-rose-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+            >
+              <StopIcon className="size-4" />
+            </button>
+          ) : null}
         </div>
       </div>
 
       <div className="mt-6 rounded-2xl border border-amber-300/20 bg-amber-950/20 p-4 text-sm text-amber-100">
         {isMonitoring
           ? 'Effects are audible. Keep your volume low and use headphones.'
-          : isListening
+          : hasLiveFilteringSession
             ? 'Effects are muted. Use Unmute when headphones are ready.'
             : 'Effects are off. Start effects only when headphones are ready.'}
       </div>
@@ -120,7 +131,7 @@ export function EffectsPanel({
         </p>
       ) : null}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         {presets.map((preset) => {
           const isSelected = preset.id === selectedPresetId
 
@@ -129,7 +140,7 @@ export function EffectsPanel({
               key={preset.id}
               type="button"
               onClick={() => applyPreset(preset.id)}
-              className={`rounded-2xl border p-4 text-left transition ${
+              className={`flex h-full flex-col rounded-2xl border p-4 text-left transition ${
                 isSelected
                   ? 'border-cyan-300 bg-cyan-300/10 text-cyan-100'
                   : 'border-slate-700 bg-slate-950/50 text-slate-200 hover:border-slate-500'
@@ -142,6 +153,20 @@ export function EffectsPanel({
             </button>
           )
         })}
+
+        <button
+          type="button"
+          aria-pressed={customPresetSelected}
+          onClick={selectCustomPreset}
+          className={`flex h-full flex-col rounded-2xl border p-4 text-left transition ${
+            customPresetSelected
+              ? 'border-cyan-300 bg-cyan-300/10 text-cyan-100'
+              : 'border-slate-700 bg-slate-950/50 text-slate-200'
+          }`}
+        >
+          <span className="block font-bold">Custom</span>
+          <span className="mt-2 block h-[2.5rem]" aria-hidden="true" />
+        </button>
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -173,7 +198,6 @@ export function EffectsPanel({
       </div>
 
       <SampleDataPanel
-        isListening={isListening}
         isRecording={isRecording}
         recordingBlob={recordingBlob}
         processedRecordingBlob={processedRecordingBlob}
@@ -185,5 +209,40 @@ export function EffectsPanel({
         processRecordingWithEffects={processRecordingWithEffects}
       />
     </section>
+  )
+}
+
+type IconProps = {
+  className?: string
+}
+
+function MicrophoneIcon({ className = 'size-5' }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="7" y="3" width="6" height="10" rx="3" />
+      <path d="M5.5 9.5a4.5 4.5 0 1 0 9 0" strokeLinecap="round" />
+      <path d="M10 14v3" strokeLinecap="round" />
+      <path d="M7.5 17h5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function StopIcon({ className = 'size-4' }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
+    </svg>
   )
 }

@@ -88,10 +88,10 @@ export function Tuner() {
             </div>
           </>
         ) : (
-          <EffectsPanel
-            isListening={audio.isListening}
-            isMonitoring={audio.isMonitoring}
-            error={audio.error}
+            <EffectsPanel
+              isMonitoring={audio.isMonitoring}
+              hasLiveFilteringSession={audio.hasLiveFilteringSession}
+              error={audio.error}
             settings={audio.effectSettings}
             presets={audio.presets}
             selectedPresetId={audio.selectedPresetId}
@@ -101,9 +101,10 @@ export function Tuner() {
             isProcessingRecording={audio.isProcessingRecording}
             stop={audio.stop}
             enableMonitoring={audio.enableMonitoring}
-            disableMonitoring={audio.disableMonitoring}
-            applyPreset={audio.applyEffectPreset}
-            setEffectSetting={audio.setEffectSetting}
+              disableMonitoring={audio.disableMonitoring}
+              applyPreset={audio.applyEffectPreset}
+              selectCustomPreset={audio.selectCustomPreset}
+              setEffectSetting={audio.setEffectSetting}
             startRecording={audio.startRecording}
             stopRecording={audio.stopRecording}
             clearRecording={audio.clearRecording}
