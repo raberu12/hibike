@@ -205,9 +205,13 @@ export function useAudio(): AudioState {
     const samples = new Float32Array(analyser.fftSize)
     analyser.getFloatTimeDomainData(samples)
 
+    // The tuner works in the time domain: each animation frame reads a short
+    // microphone window, estimates its fundamental frequency, and updates the UI.
     const result = detectPitch(samples, audioContext.sampleRate)
 
     if (result) {
+      // Average a few consecutive pitch estimates so the meter reflects the
+      // player's note rather than frame-to-frame jitter from the raw detector.
       const recent = [...recentFrequenciesRef.current, result.frequency].slice(
         -SMOOTHING_WINDOW,
       )
@@ -240,6 +244,8 @@ export function useAudio(): AudioState {
       setError(null)
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
+          // Disable browser voice-processing features so pitch detection sees a
+          // cleaner, less colorized instrument signal.
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false,
@@ -253,6 +259,8 @@ export function useAudio(): AudioState {
       analyser.fftSize = FFT_SIZE
       analyser.smoothingTimeConstant = 0.2
 
+      // Split the live mic stream into two paths: analysis for tuning feedback
+      // and an effect chain for optional monitoring/recording.
       source.connect(analyser)
       connectEffectGraph(source, effectGraph)
       applySettingsToGraph(settingsRef.current, audioContext)
@@ -315,6 +323,8 @@ export function useAudio(): AudioState {
 
     recorderNode.onaudioprocess = (event) => {
       const input = event.inputBuffer.getChannelData(0)
+      // Copy each buffer because Web Audio reuses its internal memory between
+      // callbacks; keeping our own snapshots preserves the full recording.
       recordingChunksRef.current.push(new Float32Array(input))
     }
 
@@ -435,6 +445,8 @@ function createEffectGraph(audioContext: AudioContext): EffectGraph {
   convolver.buffer = createImpulseResponse(audioContext)
   monitorGain.gain.value = 0
 
+  // This graph models a simple pedalboard: compression -> drive -> tone, then
+  // parallel delay and reverb paths mixed back into the monitored output.
   inputGain.connect(compressor)
   compressor.connect(drive)
   drive.connect(tone)
@@ -487,6 +499,8 @@ function createImpulseResponse(audioContext: AudioContext) {
   const length = Math.floor(audioContext.sampleRate * duration)
   const impulse = audioContext.createBuffer(2, length, audioContext.sampleRate)
 
+  // Reverb is synthesized by feeding decaying noise into a convolver, which
+  // approximates many tiny reflections in a room.
   for (let channelIndex = 0; channelIndex < impulse.numberOfChannels; channelIndex += 1) {
     const channel = impulse.getChannelData(channelIndex)
 

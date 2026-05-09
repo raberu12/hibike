@@ -25,6 +25,8 @@ export const UKULELE_STRINGS: UkuleleString[] = [
 const IN_TUNE_THRESHOLD_CENTS = 5
 
 export function frequencyToCents(frequency: number, targetFrequency: number) {
+  // Cents give a logarithmic distance between pitches, which matches how
+  // musicians hear tuning error better than raw hertz differences.
   return 1200 * Math.log2(frequency / targetFrequency)
 }
 
@@ -41,6 +43,8 @@ export function getClosestUkuleleNote(frequency: number): NoteMatch | null {
     return null
   }
 
+  // Choose the target string whose pitch is closest in cents so the UI reports
+  // the musically nearest ukulele note, not just the nearest raw frequency.
   const closestString = UKULELE_STRINGS.reduce((closest, current) => {
     const closestDistance = Math.abs(frequencyToCents(frequency, closest.frequency))
     const currentDistance = Math.abs(frequencyToCents(frequency, current.frequency))

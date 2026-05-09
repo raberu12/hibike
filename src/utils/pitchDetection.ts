@@ -27,10 +27,14 @@ export function detectPitch(
 ): PitchDetectionResult | null {
   const rms = getRms(samples)
 
+  // Ignore frames with too little energy because autocorrelation becomes noisy
+  // and unstable when the input is close to silence.
   if (rms < MIN_RMS) {
     return null
   }
 
+  // Convert the target frequency range into lag bounds because autocorrelation
+  // detects pitch by finding the repeating period in the time-domain signal.
   const minLag = Math.floor(sampleRate / MAX_FREQUENCY)
   const maxLag = Math.min(
     Math.floor(sampleRate / MIN_FREQUENCY),
@@ -79,6 +83,8 @@ function getNormalizedCorrelations(
       signalPower += current * current + shifted * shifted
     }
 
+    // A value near 1 means the waveform aligns well with a shifted copy of
+    // itself, which is the signature of a repeating period.
     correlations[lag] = signalPower > 0 ? 1 - offsetDifference / signalPower : 0
   }
 
@@ -126,6 +132,8 @@ function refineLagWithParabolicInterpolation(
     return lag
   }
 
+  // Interpolating around the discrete peak gives a sub-sample lag estimate,
+  // which improves frequency accuracy beyond the analyser buffer resolution.
   const offset = 0.5 * (previous - next) / denominator
   return lag + Math.max(-0.5, Math.min(0.5, offset))
 }
