@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   UKULELE_STRINGS,
+  type NoteMatch,
+  type TuningStatus,
 } from '../utils/noteMapping'
 import { useAudio, type TunerTarget } from '../hooks/useAudio'
 import { EffectsPanel } from './EffectsPanel'
@@ -10,11 +12,92 @@ import { TuningMeter } from './TuningMeter'
 
 type AppMode = 'tune' | 'effects'
 
+const DISPLAY_DAMPING_ALPHA = 0.18
+const DISPLAY_CLEAR_HOLD_MS = 200
+const IN_TUNE_ENTER_CENTS = 4
+const IN_TUNE_EXIT_CENTS = 6
+
 export function Tuner() {
   const [mode, setMode] = useState<AppMode>('tune')
   const [selectedNote, setSelectedNote] = useState<TunerTarget>('G4')
   const audio = useAudio(selectedNote)
-  const displayMatch = audio.match
+  const [displayMatch, setDisplayMatch] = useState<NoteMatch | null>(null)
+  const rawMatchRef = useRef(audio.match)
+  const selectedNoteRef = useRef(selectedNote)
+  const isListeningRef = useRef(audio.isListening)
+  const lastVisiblePitchAtRef = useRef<number | null>(null)
+  const lastProcessedNoteRef = useRef(selectedNote)
+
+  useEffect(() => {
+    rawMatchRef.current = audio.match
+  }, [audio.match])
+
+  useEffect(() => {
+    selectedNoteRef.current = selectedNote
+  }, [selectedNote])
+
+  useEffect(() => {
+    isListeningRef.current = audio.isListening
+  }, [audio.isListening])
+
+  useEffect(() => {
+    let frameId = 0
+
+    const tick = () => {
+      const now = performance.now()
+      const rawMatch = rawMatchRef.current
+      const currentSelectedNote = selectedNoteRef.current
+      const selectedNoteChanged = currentSelectedNote !== lastProcessedNoteRef.current
+
+      if (!isListeningRef.current) {
+        lastVisiblePitchAtRef.current = null
+        setDisplayMatch((previous) => (previous === null ? previous : null))
+        lastProcessedNoteRef.current = currentSelectedNote
+        frameId = requestAnimationFrame(tick)
+        return
+      }
+
+      if (rawMatch) {
+        lastVisiblePitchAtRef.current = now
+      }
+
+      if (selectedNoteChanged) {
+        lastProcessedNoteRef.current = currentSelectedNote
+        setDisplayMatch((previous) => {
+          const next = rawMatch ? createImmediateDisplayMatch(rawMatch) : null
+          return areEquivalentMatches(previous, next) ? previous : next
+        })
+        frameId = requestAnimationFrame(tick)
+        return
+      }
+
+      if (!rawMatch) {
+        const lastVisiblePitchAt = lastVisiblePitchAtRef.current
+        const shouldHold =
+          lastVisiblePitchAt !== null && now - lastVisiblePitchAt < DISPLAY_CLEAR_HOLD_MS
+
+        if (!shouldHold) {
+          setDisplayMatch((previous) => (previous === null ? previous : null))
+        }
+
+        frameId = requestAnimationFrame(tick)
+        return
+      }
+
+      setDisplayMatch((previous) => {
+        const next = createDampedDisplayMatch(previous, rawMatch)
+        return areEquivalentMatches(previous, next) ? previous : next
+      })
+
+      frameId = requestAnimationFrame(tick)
+    }
+
+    frameId = requestAnimationFrame(tick)
+
+    return () => cancelAnimationFrame(frameId)
+  }, [])
+
+  const displayFrequency = displayMatch?.frequency ?? null
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,_#020617,_#0f172a_55%,_#111827)] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
@@ -141,7 +224,7 @@ export function Tuner() {
             <NoteDisplay
               match={displayMatch}
               selectedNote={selectedNote}
-              frequency={audio.frequency}
+              frequency={displayFrequency}
               isListening={audio.isListening}
               error={audio.error}
             />
@@ -177,5 +260,84 @@ export function Tuner() {
         )}
       </div>
     </main>
+  )
+}
+
+function createImmediateDisplayMatch(match: NoteMatch): NoteMatch {
+  const cents = match.cents
+
+  return {
+    ...match,
+    frequency: centsToFrequency(match.targetFrequency, cents),
+    cents,
+    status: getDisplayStatus(cents, null),
+  }
+}
+
+function createDampedDisplayMatch(
+  previous: NoteMatch | null,
+  next: NoteMatch,
+): NoteMatch {
+  if (!previous || previous.note !== next.note) {
+    return createImmediateDisplayMatch(next)
+  }
+
+  const cents = dampValue(previous.cents, next.cents, DISPLAY_DAMPING_ALPHA)
+  const frequency = centsToFrequency(next.targetFrequency, cents)
+
+  return {
+    ...next,
+    cents,
+    frequency,
+    status: getDisplayStatus(cents, previous.status),
+  }
+}
+
+function getDisplayStatus(
+  cents: number,
+  previousStatus: TuningStatus | null,
+): TuningStatus {
+  const distance = Math.abs(cents)
+
+  if (previousStatus === 'In Tune') {
+    if (distance <= IN_TUNE_EXIT_CENTS) {
+      return 'In Tune'
+    }
+
+    return cents < 0 ? 'Flat' : 'Sharp'
+  }
+
+  if (distance <= IN_TUNE_ENTER_CENTS) {
+    return 'In Tune'
+  }
+
+  return cents < 0 ? 'Flat' : 'Sharp'
+}
+
+function dampValue(current: number, target: number, alpha: number) {
+  return current + (target - current) * alpha
+}
+
+function centsToFrequency(targetFrequency: number, cents: number) {
+  return targetFrequency * 2 ** (cents / 1200)
+}
+
+function areEquivalentMatches(
+  current: NoteMatch | null,
+  next: NoteMatch | null,
+) {
+  if (current === next) {
+    return true
+  }
+
+  if (!current || !next) {
+    return false
+  }
+
+  return (
+    current.note === next.note &&
+    current.status === next.status &&
+    Math.abs(current.cents - next.cents) < 0.1 &&
+    Math.abs(current.frequency - next.frequency) < 0.1
   )
 }
