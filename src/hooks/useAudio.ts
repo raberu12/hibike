@@ -6,6 +6,7 @@ import {
   type EffectSettings,
 } from '../utils/effects'
 import {
+  getAutoDetectedUkuleleNote,
   getUkuleleNoteMatch,
   type NoteMatch,
   type UkuleleNoteName,
@@ -61,7 +62,9 @@ const RECORDING_MAX_SECONDS = 20
 const RECORDER_BUFFER_SIZE = 4096
 const LOST_PITCH_RELEASE_MS = 150
 
-export function useAudio(targetNote: UkuleleNoteName): AudioState {
+export type TunerTarget = UkuleleNoteName | 'auto'
+
+export function useAudio(targetNote: TunerTarget): AudioState {
   const [frequency, setFrequency] = useState<number | null>(null)
   const [match, setMatch] = useState<NoteMatch | null>(null)
   const [isListening, setIsListening] = useState(false)
@@ -99,7 +102,7 @@ export function useAudio(targetNote: UkuleleNoteName): AudioState {
     targetNoteRef.current = targetNote
 
     if (frequency !== null) {
-      setMatch(getUkuleleNoteMatch(frequency, targetNote))
+      setMatch(getTunerMatch(frequency, targetNote))
     } else {
       setMatch(null)
     }
@@ -246,7 +249,7 @@ export function useAudio(targetNote: UkuleleNoteName): AudioState {
       lostPitchStartedAtRef.current = null
       const average = recent.reduce((sum, value) => sum + value, 0) / recent.length
       setFrequency(average)
-      setMatch(getUkuleleNoteMatch(average, targetNoteRef.current))
+      setMatch(getTunerMatch(average, targetNoteRef.current))
     } else {
       if (lostPitchStartedAtRef.current === null) {
         lostPitchStartedAtRef.current = now
@@ -466,6 +469,14 @@ export function useAudio(targetNote: UkuleleNoteName): AudioState {
     clearRecording,
     processRecordingWithEffects,
   }
+}
+
+function getTunerMatch(frequency: number, targetNote: TunerTarget) {
+  if (targetNote === 'auto') {
+    return getAutoDetectedUkuleleNote(frequency)
+  }
+
+  return getUkuleleNoteMatch(frequency, targetNote)
 }
 
 function createEffectGraph(audioContext: AudioContext): EffectGraph {

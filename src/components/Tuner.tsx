@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { UKULELE_STRINGS, type UkuleleNoteName } from '../utils/noteMapping'
-import { useAudio } from '../hooks/useAudio'
+import {
+  UKULELE_STRINGS,
+} from '../utils/noteMapping'
+import { useAudio, type TunerTarget } from '../hooks/useAudio'
 import { EffectsPanel } from './EffectsPanel'
 import { NoteDisplay } from './NoteDisplay'
 import { StringVisualizer } from './StringVisualizer'
@@ -10,7 +12,7 @@ type AppMode = 'tune' | 'effects'
 
 export function Tuner() {
   const [mode, setMode] = useState<AppMode>('tune')
-  const [selectedNote, setSelectedNote] = useState<UkuleleNoteName>('G4')
+  const [selectedNote, setSelectedNote] = useState<TunerTarget>('G4')
   const audio = useAudio(selectedNote)
   const displayMatch = audio.match
 
@@ -60,10 +62,31 @@ export function Tuner() {
               </h2>
 
               <div
-                className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+                className="grid grid-cols-2 gap-3 sm:grid-cols-5"
                 role="radiogroup"
                 aria-label="Select ukulele string"
               >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedNote === 'auto'}
+                  onClick={() => setSelectedNote('auto')}
+                  className={`rounded-2xl border px-4 py-4 text-left transition ${
+                    selectedNote === 'auto'
+                      ? 'border-cyan-300 bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/30'
+                      : 'border-slate-700 bg-slate-950/70 text-slate-100 hover:border-slate-500 hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="block text-2xl font-black tracking-tight">Auto</span>
+                  <span
+                    className={`mt-1 block text-xs font-medium uppercase tracking-[0.2em] ${
+                      selectedNote === 'auto' ? 'text-slate-800' : 'text-slate-400'
+                    }`}
+                  >
+                    Detect
+                  </span>
+                </button>
+
                 {UKULELE_STRINGS.map((string) => {
                   const isSelected = selectedNote === string.note
 
@@ -125,7 +148,7 @@ export function Tuner() {
 
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <TuningMeter cents={displayMatch?.cents ?? null} />
-              <StringVisualizer activeNote={selectedNote} />
+              <StringVisualizer activeNote={selectedNote === 'auto' ? (displayMatch?.note ?? null) : selectedNote} />
             </div>
           </>
         ) : (

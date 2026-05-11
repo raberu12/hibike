@@ -1,8 +1,9 @@
-import { getUkuleleString, type NoteMatch, type UkuleleNoteName } from '../utils/noteMapping'
+import { getUkuleleString, type NoteMatch } from '../utils/noteMapping'
+import type { TunerTarget } from '../hooks/useAudio'
 
 type NoteDisplayProps = {
   match: NoteMatch | null
-  selectedNote: UkuleleNoteName
+  selectedNote: TunerTarget
   frequency: number | null
   isListening: boolean
   error: string | null
@@ -16,12 +17,15 @@ export function NoteDisplay({
   error,
 }: NoteDisplayProps) {
   const statusTone = getStatusTone(match?.status)
-  const selectedString = getUkuleleString(selectedNote)
+  const selectedString = selectedNote === 'auto' ? null : getUkuleleString(selectedNote)
+  const displayedNote = selectedNote === 'auto' ? (match?.note ?? 'Auto') : selectedNote
   const statusMessage = match?.status
     ?? (error
       ? 'Mic unavailable'
       : isListening
-        ? 'Pluck the selected string'
+        ? selectedNote === 'auto'
+          ? 'Play a string to detect it'
+          : 'Pluck the selected string'
         : 'Tap start to tune')
 
   return (
@@ -31,7 +35,7 @@ export function NoteDisplay({
       </p>
 
       <div className="mt-6 text-8xl font-black tracking-tighter text-white sm:text-9xl">
-        {selectedNote}
+        {displayedNote}
       </div>
 
       <p className={`mt-4 text-2xl font-bold ${statusTone}`}>
@@ -52,7 +56,9 @@ export function NoteDisplay({
             Target
           </dt>
           <dd className="mt-2 text-2xl font-semibold text-slate-100">
-            {selectedString ? `${selectedString.frequency.toFixed(2)} Hz` : '—'}
+            {selectedNote === 'auto'
+              ? (match ? `${match.targetFrequency.toFixed(2)} Hz` : '—')
+              : (selectedString ? `${selectedString.frequency.toFixed(2)} Hz` : '—')}
           </dd>
         </div>
         <div className="rounded-2xl bg-slate-950/70 p-4">

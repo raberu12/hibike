@@ -23,6 +23,7 @@ export const UKULELE_STRINGS: UkuleleString[] = [
 ]
 
 const IN_TUNE_THRESHOLD_CENTS = 5
+const AUTO_DETECT_ACCEPTANCE_CENTS = 45
 
 export function frequencyToCents(frequency: number, targetFrequency: number) {
   // Cents give a logarithmic distance between pitches, which matches how
@@ -90,4 +91,16 @@ export function getClosestUkuleleNote(frequency: number): NoteMatch | null {
     cents,
     status: getTuningStatus(cents),
   }
+}
+
+export function getAutoDetectedUkuleleNote(frequency: number): NoteMatch | null {
+  const closestMatch = getClosestUkuleleNote(frequency)
+
+  if (!closestMatch) {
+    return null
+  }
+
+  return Math.abs(closestMatch.cents) <= AUTO_DETECT_ACCEPTANCE_CENTS
+    ? closestMatch
+    : null
 }
