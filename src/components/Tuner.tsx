@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
+import { UKULELE_STRINGS, type UkuleleNoteName } from '../utils/noteMapping'
 import { useAudio } from '../hooks/useAudio'
-import { getClosestUkuleleNote } from '../utils/noteMapping'
 import { EffectsPanel } from './EffectsPanel'
 import { NoteDisplay } from './NoteDisplay'
 import { StringVisualizer } from './StringVisualizer'
@@ -10,11 +10,9 @@ type AppMode = 'tune' | 'effects'
 
 export function Tuner() {
   const [mode, setMode] = useState<AppMode>('tune')
-  const audio = useAudio()
-  const match = useMemo(
-    () => (audio.frequency ? getClosestUkuleleNote(audio.frequency) : null),
-    [audio.frequency],
-  )
+  const [selectedNote, setSelectedNote] = useState<UkuleleNoteName>('G4')
+  const audio = useAudio(selectedNote)
+  const displayMatch = audio.match
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.18),_transparent_35%),linear-gradient(135deg,_#020617,_#0f172a_55%,_#111827)] px-4 py-8 text-slate-100 sm:px-6 lg:px-8">
@@ -56,6 +54,48 @@ export function Tuner() {
 
         {mode === 'tune' ? (
           <>
+            <section className="rounded-3xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-xl shadow-slate-950/20">
+              <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-slate-300">
+                Select string
+              </h2>
+
+              <div
+                className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+                role="radiogroup"
+                aria-label="Select ukulele string"
+              >
+                {UKULELE_STRINGS.map((string) => {
+                  const isSelected = selectedNote === string.note
+
+                  return (
+                    <button
+                      key={string.note}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      onClick={() => setSelectedNote(string.note)}
+                      className={`rounded-2xl border px-4 py-4 text-left transition ${
+                        isSelected
+                          ? 'border-cyan-300 bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/30'
+                          : 'border-slate-700 bg-slate-950/70 text-slate-100 hover:border-slate-500 hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="block text-2xl font-black tracking-tight">
+                        {string.note}
+                      </span>
+                      <span
+                        className={`mt-1 block text-xs font-medium uppercase tracking-[0.2em] ${
+                          isSelected ? 'text-slate-800' : 'text-slate-400'
+                        }`}
+                      >
+                        {string.label}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+
             <div className="flex justify-center gap-3">
               <button
                 type="button"
@@ -76,15 +116,16 @@ export function Tuner() {
             </div>
 
             <NoteDisplay
-              match={match}
+              match={displayMatch}
+              selectedNote={selectedNote}
               frequency={audio.frequency}
               isListening={audio.isListening}
               error={audio.error}
             />
 
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-              <TuningMeter cents={match?.cents ?? null} />
-              <StringVisualizer activeNote={match?.note ?? null} />
+              <TuningMeter cents={displayMatch?.cents ?? null} />
+              <StringVisualizer activeNote={selectedNote} />
             </div>
           </>
         ) : (

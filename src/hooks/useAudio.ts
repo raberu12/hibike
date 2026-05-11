@@ -5,12 +5,18 @@ import {
   type EffectPresetId,
   type EffectSettings,
 } from '../utils/effects'
+import {
+  getUkuleleNoteMatch,
+  type NoteMatch,
+  type UkuleleNoteName,
+} from '../utils/noteMapping'
 import { detectPitch } from '../utils/pitchDetection'
 import { renderEffectedWav } from '../utils/offlineEffects'
 import { encodeWav } from '../utils/wav'
 
 export type AudioState = {
   frequency: number | null
+  match: NoteMatch | null
   isListening: boolean
   isMonitoring: boolean
   hasLiveFilteringSession: boolean
@@ -53,9 +59,11 @@ const SMOOTHING_WINDOW = 5
 const DEFAULT_PRESET_ID: EffectPresetId = 'clean'
 const RECORDING_MAX_SECONDS = 20
 const RECORDER_BUFFER_SIZE = 4096
+const LOST_PITCH_RELEASE_MS = 150
 
-export function useAudio(): AudioState {
+export function useAudio(targetNote: UkuleleNoteName): AudioState {
   const [frequency, setFrequency] = useState<number | null>(null)
+  const [match, setMatch] = useState<NoteMatch | null>(null)
   const [isListening, setIsListening] = useState(false)
   const [isMonitoring, setIsMonitoring] = useState(false)
   const [hasLiveFilteringSession, setHasLiveFilteringSession] = useState(false)
@@ -77,6 +85,7 @@ export function useAudio(): AudioState {
   const effectGraphRef = useRef<EffectGraph | null>(null)
   const animationFrameRef = useRef<number | null>(null)
   const recentFrequenciesRef = useRef<number[]>([])
+  const lostPitchStartedAtRef = useRef<number | null>(null)
   const recordingChunksRef = useRef<Float32Array[]>([])
   const recordedSamplesRef = useRef<Float32Array | null>(null)
   const recordingSampleRateRef = useRef(44100)
@@ -84,6 +93,17 @@ export function useAudio(): AudioState {
   const recorderSilentGainRef = useRef<GainNode | null>(null)
   const recordingTimeoutRef = useRef<number | null>(null)
   const settingsRef = useRef(effectSettings)
+  const targetNoteRef = useRef(targetNote)
+
+  useEffect(() => {
+    targetNoteRef.current = targetNote
+
+    if (frequency !== null) {
+      setMatch(getUkuleleNoteMatch(frequency, targetNote))
+    } else {
+      setMatch(null)
+    }
+  }, [frequency, targetNote])
 
   const applySettingsToGraph = useCallback(
     (settings: EffectSettings, audioContext = audioContextRef.current) => {
@@ -192,10 +212,12 @@ export function useAudio(): AudioState {
     audioContextRef.current = null
     analyserRef.current = null
     recentFrequenciesRef.current = []
+    lostPitchStartedAtRef.current = null
     setIsListening(false)
     setIsMonitoring(false)
     setHasLiveFilteringSession(false)
     setFrequency(null)
+    setMatch(null)
   }, [stopRecording])
 
   const processAudio = useCallback(function processAudioLoop() {
@@ -212,6 +234,7 @@ export function useAudio(): AudioState {
     // The tuner works in the time domain: each animation frame reads a short
     // microphone window, estimates its fundamental frequency, and updates the UI.
     const result = detectPitch(samples, audioContext.sampleRate)
+    const now = performance.now()
 
     if (result) {
       // Average a few consecutive pitch estimates so the meter reflects the
@@ -220,10 +243,20 @@ export function useAudio(): AudioState {
         -SMOOTHING_WINDOW,
       )
       recentFrequenciesRef.current = recent
+      lostPitchStartedAtRef.current = null
       const average = recent.reduce((sum, value) => sum + value, 0) / recent.length
       setFrequency(average)
-    } else if (recentFrequenciesRef.current.length === 0) {
-      setFrequency(null)
+      setMatch(getUkuleleNoteMatch(average, targetNoteRef.current))
+    } else {
+      if (lostPitchStartedAtRef.current === null) {
+        lostPitchStartedAtRef.current = now
+      }
+
+      if (now - lostPitchStartedAtRef.current >= LOST_PITCH_RELEASE_MS) {
+        recentFrequenciesRef.current = []
+        setFrequency(null)
+        setMatch(null)
+      }
     }
 
     animationFrameRef.current = requestAnimationFrame(processAudioLoop)
@@ -409,6 +442,7 @@ export function useAudio(): AudioState {
 
   return {
     frequency,
+    match,
     isListening,
     isMonitoring,
     hasLiveFilteringSession,

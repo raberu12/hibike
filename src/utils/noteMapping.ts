@@ -38,6 +38,35 @@ export function getTuningStatus(cents: number): TuningStatus {
   return cents < 0 ? 'Flat' : 'Sharp'
 }
 
+export function getUkuleleString(note: UkuleleNoteName) {
+  return UKULELE_STRINGS.find((string) => string.note === note) ?? null
+}
+
+export function getUkuleleNoteMatch(
+  frequency: number,
+  note: UkuleleNoteName,
+): NoteMatch | null {
+  if (!Number.isFinite(frequency) || frequency <= 0) {
+    return null
+  }
+
+  const targetString = getUkuleleString(note)
+
+  if (!targetString) {
+    return null
+  }
+
+  const cents = frequencyToCents(frequency, targetString.frequency)
+
+  return {
+    note: targetString.note,
+    targetFrequency: targetString.frequency,
+    frequency,
+    cents,
+    status: getTuningStatus(cents),
+  }
+}
+
 export function getClosestUkuleleNote(frequency: number): NoteMatch | null {
   if (!Number.isFinite(frequency) || frequency <= 0) {
     return null

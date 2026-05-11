@@ -1,7 +1,8 @@
-import type { NoteMatch } from '../utils/noteMapping'
+import { getUkuleleString, type NoteMatch, type UkuleleNoteName } from '../utils/noteMapping'
 
 type NoteDisplayProps = {
   match: NoteMatch | null
+  selectedNote: UkuleleNoteName
   frequency: number | null
   isListening: boolean
   error: string | null
@@ -9,11 +10,19 @@ type NoteDisplayProps = {
 
 export function NoteDisplay({
   match,
+  selectedNote,
   frequency,
   isListening,
   error,
 }: NoteDisplayProps) {
   const statusTone = getStatusTone(match?.status)
+  const selectedString = getUkuleleString(selectedNote)
+  const statusMessage = match?.status
+    ?? (error
+      ? 'Mic unavailable'
+      : isListening
+        ? 'Pluck the selected string'
+        : 'Tap start to tune')
 
   return (
     <section className="rounded-3xl border border-slate-700/70 bg-slate-900/80 p-8 text-center shadow-2xl shadow-cyan-950/20 backdrop-blur">
@@ -22,11 +31,11 @@ export function NoteDisplay({
       </p>
 
       <div className="mt-6 text-8xl font-black tracking-tighter text-white sm:text-9xl">
-        {match?.note ?? '—'}
+        {selectedNote}
       </div>
 
       <p className={`mt-4 text-2xl font-bold ${statusTone}`}>
-        {match?.status ?? (error ? 'Mic unavailable' : 'Tap start to tune')}
+        {statusMessage}
       </p>
 
       <dl className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -43,7 +52,7 @@ export function NoteDisplay({
             Target
           </dt>
           <dd className="mt-2 text-2xl font-semibold text-slate-100">
-            {match ? `${match.targetFrequency.toFixed(2)} Hz` : '—'}
+            {selectedString ? `${selectedString.frequency.toFixed(2)} Hz` : '—'}
           </dd>
         </div>
         <div className="rounded-2xl bg-slate-950/70 p-4">
